@@ -1,41 +1,13 @@
-name: Node CI
+name: Node CI #Build OSX Only (only need OSX for my instance), and upload compiled app as artifact
 on: [push]
 jobs:
-  linux64:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [12.x]
-    steps:
-    - uses: actions/checkout@v1
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{ matrix.node-version }}
-    - name: yarn update and lindist
-      run: |
-        yarn update
-        yarn run lindist
-
-        # manually tar it, to preserve the symlinks
-        cd electron-output
-        VERSION=$(node -e "console.log(require('../package.json').version)")
-        mv linux-unpacked companion-$VERSION
-        tar -cvzf companion-$VERSION.tar.gz companion-$VERSION
-    - name: rename and upload stuff
-      run: node ./tools/build_rename_git.js
-      env:
-        TRAVIS_OS_NAME: linux
-        BITFOCUS_S3: ${{ secrets.BITFOCUS_S3 }}
-        BITFOCUS_KEY: ${{ secrets.BITFOCUS_ACCESS }}
-        BITFOCUS_SECRET: ${{ secrets.BITFOCUS_SECRET }}
   osx:
     runs-on: macOS-latest
     strategy:
       matrix:
         node-version: [12.x]
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v1
       with:
@@ -44,32 +16,18 @@ jobs:
       run: |
         yarn update
         yarn run macdist
-    - name: rename and upload stuff
-      run: node ./tools/build_rename_git.js
-      env:
-        TRAVIS_OS_NAME: osx
-        BITFOCUS_S3: ${{ secrets.BITFOCUS_S3 }}
-        BITFOCUS_KEY: ${{ secrets.BITFOCUS_ACCESS }}
-        BITFOCUS_SECRET: ${{ secrets.BITFOCUS_SECRET }}
-  win64:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        node-version: [12.x]
-    steps:
-    - uses: actions/checkout@v1
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
+    - name: election-output filenames #cd into electron output dir, and grab filenames
+      run: | 
+        cd ./electron-output/ 
+        echo OSX_zip=$(ls Companion-*.zip) >> $GITHUB_ENV 
+        echo OSX_block=$(ls Companion-*.blockmap) >> $GITHUB_ENV
+    - name: Upload Companion zip as artifact
+      uses: 'actions/upload-artifact@v2'
       with:
-        node-version: ${{ matrix.node-version }}
-    - name: yarn update and windist
-      run: |
-        yarn update
-        yarn run windist
-    - name: rename and upload stuff
-      run: node ./tools/build_rename_git.js
-      env:
-        TRAVIS_OS_NAME: win64
-        BITFOCUS_S3: ${{ secrets.BITFOCUS_S3 }}
-        BITFOCUS_KEY: ${{ secrets.BITFOCUS_ACCESS }}
-        BITFOCUS_SECRET: ${{ secrets.BITFOCUS_SECRET }}
+        name: ${{ env.OSX_zip }}
+        path: .
+    - name: Upload Companion block as artifact
+      uses: 'actions/upload-artifact@v2'
+      with:
+        name: ${{ env.OSX_block }}
+        path: .
